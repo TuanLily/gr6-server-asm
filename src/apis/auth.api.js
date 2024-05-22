@@ -3,6 +3,10 @@ const router = express.Router();
 const connection = require("../../index");
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
 
 
 
@@ -33,41 +37,103 @@ const bcrypt = require('bcrypt');
 // }); //! Chức năng login bằng mật khẩu bình thường
 
 router.post('/login', (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
     const query = 'SELECT * FROM Employees WHERE email = ?';
 
     connection.query(query, [email], (err, rows) => {
         if (err) {
             console.error('Error fetching user:', err);
-            res.status(500).send('Error fetching user');
-            return;
+            return res.status(500).send('Error fetching user');
         }
 
         if (rows.length === 0) {
-            res.status(404).send('Invalid email or password');
-            return;
+            return res.status(404).send('Invalid email or password');
         }
 
         const user = rows[0];
 
-        // Sử dụng bcrypt để so sánh mật khẩu
         bcrypt.compare(password, user.password, (err, isMatch) => {
             if (err) {
                 console.error('Error comparing passwords:', err);
-                res.status(500).send('Error comparing passwords');
-                return;
+                return res.status(500).json({ status: 'error', message: 'Error comparing passwords' });
             }
 
             if (!isMatch) {
-                res.status(401).send('Invalid email or password');
-                return;
+                return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
             }
 
-            // Mật khẩu đúng, trả về thông tin người dùng và token
-            res.json({ name: user.username, token: 'fake-jwt-token' });
+            // Tạo access token có thời hạn 1 giờ
+            const token = jwt.sign(
+                { id: user.id, email: user.email, name: user.name, username: user.username },
+                JWT_SECRET,
+                { expiresIn: '1h' }
+            );
+
+            // Nếu rememberMe được chọn, tạo thêm refresh token có thời hạn 15 ngày
+            if (rememberMe) {
+                const refreshToken = jwt.sign(
+                    { id: user.id, email: user.email, name: user.name, username: user.username },
+                    JWT_SECRET,
+                    { expiresIn: '15d' }
+                );
+                return res.json({ name: user.username, token, refreshToken });
+            } else {
+                return res.json({ name: user.username, token });
+            }
         });
     });
-});  //! Chức năng login bằng mật khẩu mã hóa bcrypt
+});//! Chức năng login bằng mật khẩu mã hóa bcrypt và tạo mã jwt
+
+// Middleware để xác thực JWT
+const authenticateJWT = (req, res, next) => {
+    const token = req.headers.authorization;
+
+    if (token) {
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err) {
+                return res.status(403).send('Token is not valid');
+            }
+            req.user = user;
+            next();
+        });
+    } else {
+        res.status(401).send('Token is required');
+    }
+};
+
+// Một route được bảo vệ bằng JWT
+router.get('/protected', authenticateJWT, (req, res) => {
+    res.json({ message: `Hello ${req.user.name}, this is a protected route!` });
+});
+
+// Endpoint để làm mới token
+router.post('/refresh-token', (req, res) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+        return res.status(400).send('Yêu cầu phải có refresh token');
+    }
+
+    jwt.verify(refreshToken, JWT_SECRET, (err, user) => {
+        if (err) {
+            if (err.name === 'TokenExpiredError') {
+                return res.status(403).send('Refresh token đã hết hạn');
+            }
+            // Thêm điều kiện để báo lỗi cụ thể khi refreshToken không hợp lệ
+            return res.status(401).send('Refresh token không hợp lệ hoặc token đã hết hạn');
+        }
+
+        // Tạo access token mới
+        const newAccessToken = jwt.sign(
+            { id: user.id, email: user.email, name: user.name, username: user.username },
+            JWT_SECRET,
+            { expiresIn: '1h' } // thời hạn mới cho access token
+        );
+
+        res.json({ token: newAccessToken });
+    });
+});
+
+
 
 // Endpoint: Quên mật khẩu
 router.post('/forgot-password', (req, res) => {
@@ -114,7 +180,7 @@ router.post('/forgot-password', (req, res) => {
                 subject: 'Dom Tea - Đặt lại mật khẩu',
                 text: `Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản của mình.\n\n
                 Vui lòng sử dụng liên kết sau để đặt lại mật khẩu:\n\n
-                http://localhost:61700/auth/resetpassword?token=${resetToken}\n\n
+                http://localhost:61700/auth/reset-password?token=${resetToken}\n\n
                 *Xin lưu ý rằng liên kết này chỉ có hiệu lực trong vòng 2 phút và không được chia sẻ với bất kỳ ai khác.\n\n
                 (Nếu bạn không yêu cầu việc đặt lại mật khẩu, vui lòng bỏ qua email này)\n`,
             };
