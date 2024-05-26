@@ -86,25 +86,35 @@ router.post('/login', (req, res) => {
 
 // Middleware để xác thực JWT
 const authenticateJWT = (req, res, next) => {
-    const token = req.headers.authorization;
+    const authHeader = req.headers.authorization;
 
-    if (token) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7); // Bỏ "Bearer " từ header
+
         jwt.verify(token, JWT_SECRET, (err, user) => {
             if (err) {
-                return res.status(403).send('Token is not valid');
+                console.error('Error verifying JWT:', err);
+                return res.status(403).send('Forbidden'); // Token không hợp lệ
             }
             req.user = user;
+            console.log('Được phép truy cập');
             next();
         });
     } else {
-        res.status(401).send('Token is required');
+        console.log('Không có Token');
+        return res.status(403).send('Forbidden'); // Không có Token trong header hoặc token không bắt đầu bằng "Bearer "
     }
 };
 
-// Một route được bảo vệ bằng JWT
-router.get('/protected', authenticateJWT, (req, res) => {
-    res.json({ message: `Hello ${req.user.name}, this is a protected route!` });
-});
+module.exports = authenticateJWT;
+
+
+
+
+// // Một route được bảo vệ bằng JWT
+// router.get('/protected', authenticateJWT, (req, res) => {
+//     res.json({ message: `Hello ${req.user.name}, this is a protected route!` });
+// });
 
 // Endpoint để làm mới token
 router.post('/refresh-token', (req, res) => {
@@ -225,7 +235,6 @@ router.post('/reset-password', (req, res) => {
         });
     });
 });
-
 
 
 module.exports = router;

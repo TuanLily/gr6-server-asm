@@ -1,24 +1,59 @@
 const express = require('express');
 const router = express.Router();
 const connection = require("../../index")
+const authenticateJWT = require('./auth.api');
 
-// Lấy danh sách sản phẩm
-router.get('/', (req, res) => {
-    const query = 'SELECT * FROM Products';
-    connection.query(query, (err, rows) => {
+// Áp dụng middleware authenticateJWT cho tất cả các route trong file này
+// router.use(authenticateJWT);
+
+
+router.get('/', authenticateJWT, (req, res) => {
+    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+    const perPage = 5; // Số sản phẩm trên mỗi trang
+    const startIndex = (page - 1) * perPage;
+    const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
+
+    // Câu truy vấn tìm kiếm sản phẩm
+    const searchQuery = `%${search}%`;
+
+    // Truy vấn MySQL để lấy dữ liệu sản phẩm theo trang và tìm kiếm
+    const query = `SELECT * FROM products WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
         if (err) {
-            console.error('Error fetching Products:', err);
-            res.status(500).send('Error fetching Products');
-            return;
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json(rows);
+
+        const products = results;
+
+        // Truy vấn để đếm tổng số sản phẩm phù hợp với điều kiện tìm kiếm
+        const countQuery = `
+            SELECT COUNT(*) AS total FROM products WHERE name LIKE ?  
+        `;
+        connection.query(countQuery, [searchQuery], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const totalProducts = results[0].total;
+            const totalPages = Math.ceil(totalProducts / perPage);
+
+            const responseData = {
+                currentPage: page,
+                totalPages: totalPages,
+                products: products
+            };
+
+            res.json(responseData);
+        });
     });
 });
 
 // Lấy một sản phẩm theo id
-router.get('/:id', (req, res) => {
+router.get('/:id', authenticateJWT, (req, res) => {
     const productId = req.params.id;
-    const query = 'SELECT * FROM Products WHERE id = ?';
+    const query = 'SELECT * FROM products WHERE id = ?';
     connection.query(query, [productId], (err, rows) => {
         if (err) {
             console.error('Error fetching product:', err);
@@ -34,9 +69,9 @@ router.get('/:id', (req, res) => {
 });
 
 // Thêm một sản phẩm mới
-router.post('/', (req, res) => {
+router.post('/', authenticateJWT, (req, res) => {
     const { name, price, sale_price, image, category_id } = req.body;
-    const query = 'INSERT INTO Products (name, price, sale_price, image, category_id) VALUES (?, ?, ?, ?, ?)';
+    const query = 'INSERT INTO products (name, price, sale_price, image, category_id) VALUES (?, ?, ?, ?, ?)';
     connection.query(query, [name, price, sale_price, image, category_id], (err, result) => {
         if (err) {
             console.error('Error adding product:', err);
@@ -48,10 +83,10 @@ router.post('/', (req, res) => {
 });
 
 // Cập nhật một sản phẩm
-router.put('/:id', (req, res) => {
+router.put('/:id', authenticateJWT, (req, res) => {
     const productId = req.params.id;
     const { name, price, sale_price, image } = req.body;
-    const query = 'UPDATE Products SET name = ?, price = ?, sale_price = ?, image = ? WHERE id = ?';
+    const query = 'UPDATE products SET name = ?, price = ?, sale_price = ?, image = ? WHERE id = ?';
     connection.query(query, [name, price, sale_price, image, productId], (err, result) => {
         if (err) {
             console.error('Error updating product:', err);
@@ -63,10 +98,10 @@ router.put('/:id', (req, res) => {
 });
 
 // Cập nhật một phần thông tin của sản phẩm
-router.patch('/:id', (req, res) => {
+router.patch('/:id', authenticateJWT, (req, res) => {
     const productId = req.params.id;
     const updatedFields = req.body;
-    const query = 'UPDATE Products SET ? WHERE id = ?';
+    const query = 'UPDATE products SET ? WHERE id = ?';
     connection.query(query, [updatedFields, productId], (err, result) => {
         if (err) {
             console.error('Error updating product:', err);
@@ -78,9 +113,9 @@ router.patch('/:id', (req, res) => {
 });
 
 // Xóa một sản phẩm
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authenticateJWT, (req, res) => {
     const productId = req.params.id;
-    const query = 'DELETE FROM Products WHERE id = ?';
+    const query = 'DELETE FROM products WHERE id = ?';
     connection.query(query, [productId], (err, result) => {
         if (err) {
             console.error('Error deleting product:', err);
@@ -90,5 +125,6 @@ router.delete('/:id', (req, res) => {
         res.json({ id: productId, message: 'Product deleted successfully' });
     });
 });
+
 
 module.exports = router;
