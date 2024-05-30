@@ -35,30 +35,30 @@ router.get('/:id', (req, res) => {
 
 // Thêm một đánh giá mới
 router.post('/', (req, res) => {
-    const { content, create_date, customer_id } = req.body;
-    const query = 'INSERT INTO feedback (content, create_date, customer_id ) VALUES (?, ?, ?)';
-    connection.query(query, [content, create_date, customer_id ], (err, result) => {
+    const { content,  customer_id} = req.body;
+    const query = 'INSERT INTO feedback (content, customer_id) VALUES (?, ?)';
+    connection.query(query, [content, customer_id], (err, result) => {
         if (err) {
             console.error('Error adding feedback:', err);
             res.status(500).send('Error adding feedback');
             return;
         }
-        res.json([{ message: 'feedback added successfully', }, { id: result.insertId, content, create_date}]);
+        res.json([{ message: 'feedback added successfully', }, { id: result.insertId, content}]);
     });
 });
 
 // Cập nhật một sản phẩm
 router.put('/:id', (req, res) => {
     const feedbackId = req.params.id;
-    const { content, create_date } = req.body;
-    const query = 'UPDATE feedback SET content = ?, create_date = ? WHERE id = ?';
-    connection.query(query, [content, create_date, feedbackId], (err, result) => {
+    const { content } = req.body;
+    const query = 'UPDATE feedback SET content = ? WHERE id = ?';
+    connection.query(query, [content, feedbackId], (err, result) => {
         if (err) {
             console.error('Error updating feedback:', err);
             res.status(500).send('Error updating feedback');
             return;
         }
-        res.json({ message: 'feedback edited successfully', id: feedbackId, content, create_date });
+        res.json({ message: 'feedback edited successfully', id: feedbackId, content });
     });
 });
 
