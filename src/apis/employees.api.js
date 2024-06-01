@@ -37,7 +37,7 @@ router.get('/:id', (req, res) => {
 
 // Thêm một nhân viên mới
 router.post('/', (req, res) => {
-    const { name, phone, email, address, password, salary } = req.body;
+    const { name, username, phone, email, address, password, salary } = req.body;
 
     bcrypt.hash(password, saltRounds, (err, hashedPassword) => {
         if (err) {
@@ -46,14 +46,14 @@ router.post('/', (req, res) => {
             return;
         }
 
-    const query = 'INSERT INTO employees (name, phone, email, address, password, salary) VALUES (?, ?, ?, ?, ?, ?)';
-    connection.query(query, [name, phone, email, address, hashedPassword, salary], (err, result) => {
+    const query = 'INSERT INTO employees (name, username, phone, email, address, password, salary) VALUES (?, ?, ?, ?, ?, ?, ?)';
+    connection.query(query, [name, username, phone, email, address, hashedPassword, salary], (err, result) => {
         if (err) {
             console.error('Error adding Employees:', err);
             res.status(500).send('Error adding Employees');
             return;
         }
-        res.json([{ message: 'Employees added successfully', }, { id: result.insertId, name, phone, email, address, password, salary  }]);
+        res.json([{ message: 'Employees added successfully', }, { id: result.insertId, name, username, phone, email, address, password, salary  }]);
         });
     });
 });
@@ -61,15 +61,15 @@ router.post('/', (req, res) => {
 // Cập nhật một nhân viên
 router.put('/:id', (req, res) => {
     const employeeId = req.params.id;
-    const {name, phone, email, address, password, salary} = req.body;
-    const query = 'UPDATE employees SET name = ?, phone = ?, email = ?, address = ?, password =?, salary = ? WHERE id = ?';
-    connection.query(query, [name, phone, email, address, password, salary, employeeId], (err, result) => {
+    const {name, username, phone, email, address, password, salary} = req.body;
+    const query = 'UPDATE employees SET name = ?, username=?, phone = ?, email = ?, address = ?, password =?, salary = ? WHERE id = ?';
+    connection.query(query, [name, username, phone, email, address, password, salary, employeeId], (err, result) => {
         if (err) {
             console.error('Error updating Employees:', err);
             res.status(500).send('Error updating Employees');
             return;
         }
-        res.json({ message: 'Employees edited successfully', id: employeeId, name, phone, email, address, password, salary });
+        res.json({ message: 'Employees edited successfully', id: employeeId, name, username, phone, email, address, password, salary });
     });
 });
 
