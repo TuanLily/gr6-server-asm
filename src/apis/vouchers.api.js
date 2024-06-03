@@ -36,6 +36,13 @@ router.get('/:id', (req, res) => {
 // Thêm một voucher mới
 router.post('/', (req, res) => {
     const { voucher_code, discount_rate, valid_from, valid_to, description } = req.body;
+    
+    // Kiểm tra xem voucher_code có được cung cấp không
+    if (!voucher_code) {
+        res.status(400).send('Voucher code is required');
+        return;
+    }
+
     const query = 'INSERT INTO vouchers (voucher_code, discount_rate, valid_from, valid_to, description) VALUES (?, ?, ?, ?, ?)';
     connection.query(query, [voucher_code, discount_rate, valid_from, valid_to, description], (err, result) => {
         if (err) {
@@ -46,6 +53,7 @@ router.post('/', (req, res) => {
         res.json([{ message: 'Voucher added successfully', }, { id: result.insertId, voucher_code, discount_rate, valid_from, valid_to, description }]);
     });
 });
+
 
 // Cập nhật một voucher
 router.put('/:id', (req, res) => {
