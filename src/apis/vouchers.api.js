@@ -2,16 +2,45 @@ const express = require('express');
 const router = express.Router();
 const connection = require("../../index");
 
-// Lấy danh sách voucher
+// Lấy danh sách voucher với tìm kiếm và phân trang
 router.get('/', (req, res) => {
-    const query = 'SELECT * FROM vouchers';
-    connection.query(query, (err, rows) => {
+    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+    const perPage = 5; // Số voucher trên mỗi trang
+    const startIndex = (page - 1) * perPage;
+    const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
+
+    // Câu truy vấn tìm kiếm voucher
+    const searchQuery = `%${search}%`;
+
+    // Truy vấn MySQL để lấy dữ liệu voucher theo trang và tìm kiếm
+    const query = `SELECT * FROM vouchers WHERE voucher_code LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
         if (err) {
-            console.error('Error fetching Vouchers:', err);
-            res.status(500).send('Error fetching Vouchers');
-            return;
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json(rows);
+
+        const vouchers = results;
+
+        // Truy vấn để đếm tổng số voucher phù hợp với điều kiện tìm kiếm
+        const countQuery = `SELECT COUNT(*) AS total FROM vouchers WHERE voucher_code LIKE ?`;
+        connection.query(countQuery, [searchQuery], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const totalVouchers = results[0].total;
+            const totalPages = Math.ceil(totalVouchers / perPage);
+
+            const responseData = {
+                currentPage: page,
+                totalPages: totalPages,
+                vouchers: vouchers
+            };
+
+            res.json(responseData);
+        });
     });
 });
 
@@ -53,7 +82,6 @@ router.post('/', (req, res) => {
         res.json([{ message: 'Voucher added successfully', }, { id: result.insertId, voucher_code, discount_rate, valid_from, valid_to, description }]);
     });
 });
-
 
 // Cập nhật một voucher
 router.put('/:id', (req, res) => {
