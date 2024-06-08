@@ -1,17 +1,50 @@
 const express = require('express');
 const router = express.Router();
-const connection = require("../../index")
+const connection = require("../../index");
+const authenticateJWT = require('./auth.api');
 
 // Lấy danh sách 
-router.get('/', (req, res) => {
-    const query = 'SELECT * FROM roles';
-    connection.query(query, (err, rows) => {
+
+router.get('/', authenticateJWT, (req, res) => {
+    const page = parseInt(req.query.page) || 1; 
+    const perPage = 5; 
+    const startIndex = (page - 1) * perPage;
+    const search = req.query.search || '';
+
+    //truy vấn tìm kiếm sản phẩm
+    const searchQuery = `%${search}%`;
+
+    
+    const query = `SELECT * FROM roles WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
         if (err) {
-            console.error('Error fetching roles:', err);
-            res.status(500).send('Error fetching roles');
-            return;
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json(rows);
+
+        const Roles = results;
+
+        
+        const countQuery = `
+            SELECT COUNT(*) AS total FROM roles WHERE name LIKE ?  
+        `;
+        connection.query(countQuery, [searchQuery], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const totalRoles = results[0].total;
+            const totalPages = Math.ceil(totalRoles / perPage);
+
+            const responseData = {
+                currentPage: page,
+                totalPages: totalPages,
+                roles: Roles
+            };
+
+            res.json(responseData);
+        });
     });
 });
 
