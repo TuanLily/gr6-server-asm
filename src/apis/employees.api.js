@@ -3,22 +3,54 @@ const router = express.Router();
 const connection = require("../../index");
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
+const authenticateJWT = require('./auth.api');
 
 // Lấy danh sách nhân viên
-router.get('/', (req, res) => {
-    const query = 'SELECT * FROM employees';
-    connection.query(query, (err, rows) => {
+router.get('/', authenticateJWT, (req, res) => {
+    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+    const perPage = 5; // Số nhân viên trên mỗi trang
+    const startIndex = (page - 1) * perPage;
+    const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
+
+    // Câu truy vấn tìm kiếm 
+    const searchQuery = `%${search}%`;
+
+    // Truy vấn MySQL để lấy dữ liệu theo trang và tìm kiếm
+    const query = `SELECT * FROM employees WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
         if (err) {
-            console.error('Error fetching Employees:', err);
-            res.status(500).send('Error fetching Employees');
-            return;
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json(rows);
+
+        const employees = results;
+
+        // Truy vấn để đếm tổng số phù hợp với điều kiện tìm kiếm
+        const countQuery = `
+            SELECT COUNT(*) AS total FROM employees WHERE name LIKE ?  
+        `;
+        connection.query(countQuery, [searchQuery], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const totalEmployees = results[0].total;
+            const totalPages = Math.ceil(totalEmployees / perPage);
+
+            const responseData = {
+                currentPage: page,
+                totalPages: totalPages,
+                employees: employees
+            };
+
+            res.json(responseData);
+        });
     });
 });
 
 // Lấy một nhân viên theo id
-router.get('/:id', (req, res) => {
+router.get('/:id', authenticateJWT, (req, res) => {
     const employeeId = req.params.id;
     const query = 'SELECT * FROM employees WHERE id = ?';
     connection.query(query, [employeeId], (err, rows) => {
@@ -36,7 +68,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Thêm một nhân viên mới
-router.post('/', (req, res) => {
+router.post('/', authenticateJWT, (req, res) => {
     const { name, username, phone, email, address, password, salary } = req.body;
 
     bcrypt.hash(password, saltRounds, (err, hashedPassword) => {
@@ -59,7 +91,7 @@ router.post('/', (req, res) => {
 });
 
 // Cập nhật một nhân viên
-router.put('/:id', (req, res) => {
+router.put('/:id', authenticateJWT, (req, res) => {
     const employeeId = req.params.id;
     const {name, username, phone, email, address, password, salary} = req.body;
     const query = 'UPDATE employees SET name = ?, username=?, phone = ?, email = ?, address = ?, password =?, salary = ? WHERE id = ?';
@@ -74,7 +106,7 @@ router.put('/:id', (req, res) => {
 });
 
 // Cập nhật một phần thông tin của nhân viên
-router.patch('/:id', (req, res) => {
+router.patch('/:id', authenticateJWT, (req, res) => {
     const employeeId = req.params.id;
     const updates = req.body;
     const query = 'UPDATE employees SET ? WHERE id = ?';
@@ -89,7 +121,7 @@ router.patch('/:id', (req, res) => {
 });
 
 // Xóa một nhân viên
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authenticateJWT, (req, res) => {
     const employeeId = req.params.id;
     const query = 'DELETE FROM employees WHERE id = ?';
     connection.query(query, [employeeId], (err, result) => {
