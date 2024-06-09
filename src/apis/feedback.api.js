@@ -3,15 +3,63 @@ const router = express.Router();
 const connection = require("../../index");
 
 // Lấy danh sách đánh giá
+// router.get('/', (req, res) => {
+//     const query = 'SELECT * FROM feedback';
+//     connection.query(query, (err, rows) => {
+//         if (err) {
+//             console.error('Error fetching feedback:', err);
+//             res.status(500).send('Error fetching feedback');
+//             return;
+//         }
+//         res.json(rows);
+//     });
+// });
+
 router.get('/', (req, res) => {
-    const query = 'SELECT * FROM feedback';
-    connection.query(query, (err, rows) => {
+    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+    const perPage = 5; // Số sản phẩm trên mỗi trang
+    const startIndex = (page - 1) * perPage;
+    const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
+
+    // Câu truy vấn tìm kiếm sản phẩm
+    const searchQuery = `%${search}%`;
+
+
+    // const query = `SELECT * FROM feedback WHERE customer_id LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+    const query = `
+    SELECT feedback.*, customers.name AS customer_name FROM feedback JOIN customers ON feedback.customer_id = customers.id WHERE customers.name LIKE ? ORDER BY feedback.id DESC LIMIT ?,?`;
+    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
         if (err) {
             console.error('Error fetching feedback:', err);
-            res.status(500).send('Error fetching feedback');
-            return;
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json(rows);
+        const feedback = results;
+
+        const countQuery = `
+        SELECT COUNT(*) AS total 
+            FROM feedback 
+            JOIN customers ON feedback.customer_id = customers.id 
+            WHERE customers.name LIKE ?  
+    `;
+        connection.query(countQuery, [searchQuery], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const totalProducts = results[0].total;
+            const totalPages = Math.ceil(totalProducts / perPage);
+
+            const responseData = {
+                currentPage: page,
+                totalPages: totalPages,
+                feedback: feedback
+            };
+
+            res.json(responseData);
+        });
+
+
     });
 });
 
@@ -35,7 +83,7 @@ router.get('/:id', (req, res) => {
 
 // Thêm một đánh giá mới
 router.post('/', (req, res) => {
-    const { content,  customer_id} = req.body;
+    const { content, customer_id } = req.body;
     const query = 'INSERT INTO feedback (content, customer_id) VALUES (?, ?)';
     connection.query(query, [content, customer_id], (err, result) => {
         if (err) {
@@ -43,7 +91,7 @@ router.post('/', (req, res) => {
             res.status(500).send('Error adding feedback');
             return;
         }
-        res.json([{ message: 'feedback added successfully', }, { id: result.insertId, content}]);
+        res.json([{ message: 'feedback added successfully', }, { id: result.insertId, content }]);
     });
 });
 

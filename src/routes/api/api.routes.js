@@ -10,6 +10,7 @@ const categoriesApi = require('../../apis/categories.api');
 const statisticsAPI = require('../../apis/statistics.api');
 const rolesApi = require('../../apis/roles.api');
 const reviewsApi = require('../../apis/reviews.api');
+const billsApi = require('../../apis/bills.api');
 
 
 router.use('/products', productsApi);
@@ -22,5 +23,6 @@ router.use('/categories', categoriesApi)
 router.use('/statistics', statisticsAPI);
 router.use('/roles', rolesApi);
 router.use('/reviews', reviewsApi);
+router.use('/bills', billsApi);
 
 module.exports = router;
