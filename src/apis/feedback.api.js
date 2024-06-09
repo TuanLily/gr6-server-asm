@@ -62,7 +62,6 @@ router.get('/', (req, res) => {
 
     });
 });
-
 // Lấy một đánh giá theo id
 router.get('/:id', (req, res) => {
     const feedbackId = req.params.id;
