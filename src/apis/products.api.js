@@ -115,16 +115,20 @@ router.patch('/:id', authenticateJWT, (req, res) => {
 // Xóa một sản phẩm
 router.delete('/:id', authenticateJWT, (req, res) => {
     const productId = req.params.id;
-    const query = 'DELETE FROM products WHERE id = ?';
+
+    // Thực hiện cập nhật trạng thái của sản phẩm thành "đã xóa" hoặc chuyển vào bảng khác
+    const query = 'UPDATE products SET status = 0 WHERE id = ?';
+
     connection.query(query, [productId], (err, result) => {
         if (err) {
             console.error('Error deleting product:', err);
             res.status(500).send('Error deleting product');
             return;
         }
-        res.json({ id: productId, message: 'Product deleted successfully' });
+        res.json({ message: 'Product deleted successfully' });
     });
 });
+
 
 
 module.exports = router;
