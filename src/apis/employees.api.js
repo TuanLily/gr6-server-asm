@@ -7,47 +7,67 @@ const authenticateJWT = require('./auth.api');
 
 // Lấy danh sách nhân viên
 router.get('/', authenticateJWT, (req, res) => {
-    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+    const page = parseInt(req.query.page); // Lấy tham số 'page'
     const perPage = 5; // Số nhân viên trên mỗi trang
-    const startIndex = (page - 1) * perPage;
     const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
 
-    // Câu truy vấn tìm kiếm 
+    // Câu truy vấn tìm kiếm nhân viên
     const searchQuery = `%${search}%`;
 
-    // Truy vấn MySQL để lấy dữ liệu theo trang và tìm kiếm
-    const query = `SELECT * FROM employees WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
-    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
-        if (err) {
-            console.error('Error executing MySQL query: ' + err.stack);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-
-        const employees = results;
-
-        // Truy vấn để đếm tổng số phù hợp với điều kiện tìm kiếm
-        const countQuery = `
-            SELECT COUNT(*) AS total FROM employees WHERE name LIKE ?  
-        `;
-        connection.query(countQuery, [searchQuery], (err, results) => {
+    // Nếu không có tham số 'page', lấy tất cả nhân viên
+    if (!page) {
+        const query = `SELECT * FROM employees WHERE name LIKE ? ORDER BY id DESC`;
+        connection.query(query, [searchQuery], (err, results) => {
             if (err) {
                 console.error('Error executing MySQL query: ' + err.stack);
                 return res.status(500).json({ error: 'Internal server error' });
             }
 
-            const totalEmployees = results[0].total;
-            const totalPages = Math.ceil(totalEmployees / perPage);
-
+            const employees = results;
             const responseData = {
-                currentPage: page,
-                totalPages: totalPages,
+                currentPage: 1,
+                totalPages: 1,
                 employees: employees
             };
 
             res.json(responseData);
         });
-    });
+    } else {
+        const startIndex = (page - 1) * perPage;
+
+        // Truy vấn MySQL để lấy dữ liệu nhân viên theo trang và tìm kiếm
+        const query = `SELECT * FROM employees WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+        connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const employees = results;
+
+            // Truy vấn để đếm tổng số nhân viên phù hợp với điều kiện tìm kiếm
+            const countQuery = `SELECT COUNT(*) AS total FROM employees WHERE name LIKE ?`;
+            connection.query(countQuery, [searchQuery], (err, results) => {
+                if (err) {
+                    console.error('Error executing MySQL query: ' + err.stack);
+                    return res.status(500).json({ error: 'Internal server error' });
+                }
+
+                const totalEmployees = results[0].total;
+                const totalPages = Math.ceil(totalEmployees / perPage);
+
+                const responseData = {
+                    currentPage: page,
+                    totalPages: totalPages,
+                    employees: employees
+                };
+
+                res.json(responseData);
+            });
+        });
+    }
 });
+
 
 // Lấy một nhân viên theo id
 router.get('/:id', authenticateJWT, (req, res) => {

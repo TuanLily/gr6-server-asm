@@ -6,43 +6,67 @@ const authenticateJWT = require('./auth.api');
 // Middleware xác thực
 // Lấy danh sách
 router.get('/', authenticateJWT, (req, res) => {
-    const page = parseInt(req.query.page) || 1;
-    const perPage = 5;
-    const startIndex = (page - 1) * perPage;
-    const search = req.query.search || '';
+    const page = parseInt(req.query.page); // Lấy tham số 'page'
+    const perPage = 5; // Số danh mục trên mỗi trang
+    const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
 
-    //truy vấn tìm kiếm sản phẩm
+    // Câu truy vấn tìm kiếm danh mục
     const searchQuery = `%${search}%`;
 
-    const query = `SELECT * FROM categories WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
-    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
-        if (err) {
-            console.error('Error executing MySQL query: ' + err.stack);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-
-        const Categories = results;
-
-        const countQuery = `SELECT COUNT(*) AS total FROM categories WHERE name LIKE ?`;
-        connection.query(countQuery, [searchQuery], (err, results) => {
+    // Nếu không có tham số 'page', lấy tất cả danh mục
+    if (!page) {
+        const query = `SELECT * FROM categories WHERE name LIKE ? ORDER BY id DESC`;
+        connection.query(query, [searchQuery], (err, results) => {
             if (err) {
                 console.error('Error executing MySQL query: ' + err.stack);
                 return res.status(500).json({ error: 'Internal server error' });
             }
 
-            const totalCategories = results[0].total;
-            const totalPages = Math.ceil(totalCategories / perPage);
-
+            const categories = results;
             const responseData = {
-                currentPage: page,
-                totalPages: totalPages,
-                categories: Categories
+                currentPage: 1,
+                totalPages: 1,
+                categories: categories
             };
 
             res.json(responseData);
         });
-    });
+    } else {
+        const startIndex = (page - 1) * perPage;
+
+        // Truy vấn MySQL để lấy dữ liệu danh mục theo trang và tìm kiếm
+        const query = `SELECT * FROM categories WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+        connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const categories = results;
+
+            // Truy vấn để đếm tổng số danh mục phù hợp với điều kiện tìm kiếm
+            const countQuery = `SELECT COUNT(*) AS total FROM categories WHERE name LIKE ?`;
+            connection.query(countQuery, [searchQuery], (err, results) => {
+                if (err) {
+                    console.error('Error executing MySQL query: ' + err.stack);
+                    return res.status(500).json({ error: 'Internal server error' });
+                }
+
+                const totalCategories = results[0].total;
+                const totalPages = Math.ceil(totalCategories / perPage);
+
+                const responseData = {
+                    currentPage: page,
+                    totalPages: totalPages,
+                    categories: categories
+                };
+
+                res.json(responseData);
+            });
+        });
+    }
 });
+
 
 // Lấy theo id
 router.get('/:id', (req, res) => {

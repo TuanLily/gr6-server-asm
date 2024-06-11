@@ -2,48 +2,111 @@ const express = require('express');
 const router = express.Router();
 const connection = require("../../index")
 // Lấy danh sách khách hàng
+// router.get('/', (req, res) => {
+//     const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+//     const perPage = 5; // Số sản phẩm trên mỗi trang
+//     const startIndex = (page - 1) * perPage;
+//     const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
+
+//     // Câu truy vấn tìm kiếm sản phẩm
+//     const searchQuery = `%${search}%`;
+
+//     // Truy vấn MySQL để lấy dữ liệu sản phẩm theo trang và tìm kiếm
+//     const query = `SELECT * FROM customers WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+//     connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
+//         if (err) {
+//             console.error('Error executing MySQL query: ' + err.stack);
+//             return res.status(500).json({ error: 'Internal server error' });
+//         }
+
+//         const customers = results;
+
+//         // Truy vấn để đếm tổng số sản phẩm phù hợp với điều kiện tìm kiếm
+//         const countQuery = `
+//             SELECT COUNT(*) AS total FROM customers WHERE name LIKE ?  
+//         `;
+//         connection.query(countQuery, [searchQuery], (err, results) => {
+//             if (err) {
+//                 console.error('Error executing MySQL query: ' + err.stack);
+//                 return res.status(500).json({ error: 'Internal server error' });
+//             }
+
+//             const totalCustomers = results[0].total;
+//             const totalPages = Math.ceil(totalCustomers / perPage);
+
+//             const responseData = {
+//                 currentPage: page,
+//                 totalPages: totalPages,
+//                 customers: customers
+//             };
+
+//             res.json(responseData);
+//         });
+//     });
+// });
+
 router.get('/', (req, res) => {
-    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
-    const perPage = 5; // Số sản phẩm trên mỗi trang
-    const startIndex = (page - 1) * perPage;
+    const page = parseInt(req.query.page); // Lấy tham số 'page'
+    const perPage = 5; // Số khách hàng trên mỗi trang
     const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
 
-    // Câu truy vấn tìm kiếm sản phẩm
+    // Câu truy vấn tìm kiếm khách hàng
     const searchQuery = `%${search}%`;
 
-    // Truy vấn MySQL để lấy dữ liệu sản phẩm theo trang và tìm kiếm
-    const query = `SELECT * FROM customers WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
-    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
-        if (err) {
-            console.error('Error executing MySQL query: ' + err.stack);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-
-        const customers = results;
-
-        // Truy vấn để đếm tổng số sản phẩm phù hợp với điều kiện tìm kiếm
-        const countQuery = `
-            SELECT COUNT(*) AS total FROM customers WHERE name LIKE ?  
-        `;
-        connection.query(countQuery, [searchQuery], (err, results) => {
+    // Nếu không có tham số 'page', lấy tất cả khách hàng
+    if (!page) {
+        const query = `SELECT * FROM customers WHERE name LIKE ? ORDER BY id DESC`;
+        connection.query(query, [searchQuery], (err, results) => {
             if (err) {
                 console.error('Error executing MySQL query: ' + err.stack);
                 return res.status(500).json({ error: 'Internal server error' });
             }
 
-            const totalCustomers = results[0].total;
-            const totalPages = Math.ceil(totalCustomers / perPage);
-
+            const customers = results;
             const responseData = {
-                currentPage: page,
-                totalPages: totalPages,
+                currentPage: 1,
+                totalPages: 1,
                 customers: customers
             };
 
             res.json(responseData);
         });
-    });
+    } else {
+        const startIndex = (page - 1) * perPage;
+
+        // Truy vấn MySQL để lấy dữ liệu khách hàng theo trang và tìm kiếm
+        const query = `SELECT * FROM customers WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+        connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const customers = results;
+
+            // Truy vấn để đếm tổng số khách hàng phù hợp với điều kiện tìm kiếm
+            const countQuery = `SELECT COUNT(*) AS total FROM customers WHERE name LIKE ?`;
+            connection.query(countQuery, [searchQuery], (err, results) => {
+                if (err) {
+                    console.error('Error executing MySQL query: ' + err.stack);
+                    return res.status(500).json({ error: 'Internal server error' });
+                }
+
+                const totalCustomers = results[0].total;
+                const totalPages = Math.ceil(totalCustomers / perPage);
+
+                const responseData = {
+                    currentPage: page,
+                    totalPages: totalPages,
+                    customers: customers
+                };
+
+                res.json(responseData);
+            });
+        });
+    }
 });
+
 
 // Lấy một khách hàng theo id
 router.get('/:id', (req, res) => {

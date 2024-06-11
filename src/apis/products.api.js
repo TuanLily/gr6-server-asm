@@ -7,48 +7,69 @@ const authenticateJWT = require('./auth.api');
 // router.use(authenticateJWT);
 
 
+
 router.get('/', authenticateJWT, (req, res) => {
-    const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
+    const page = parseInt(req.query.page); // Lấy tham số 'page'
     const perPage = 5; // Số sản phẩm trên mỗi trang
-    const startIndex = (page - 1) * perPage;
     const search = req.query.search || ''; // Lấy tham số 'search', mặc định là chuỗi rỗng nếu không có
 
     // Câu truy vấn tìm kiếm sản phẩm
     const searchQuery = `%${search}%`;
 
-    // Truy vấn MySQL để lấy dữ liệu sản phẩm theo trang và tìm kiếm
-    const query = `SELECT * FROM products WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
-    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
-        if (err) {
-            console.error('Error executing MySQL query: ' + err.stack);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-
-        const products = results;
-
-        // Truy vấn để đếm tổng số sản phẩm phù hợp với điều kiện tìm kiếm
-        const countQuery = `
-            SELECT COUNT(*) AS total FROM products WHERE name LIKE ?  
-        `;
-        connection.query(countQuery, [searchQuery], (err, results) => {
+    // Nếu không có tham số 'page', lấy tất cả sản phẩm
+    if (!page) {
+        const query = `SELECT * FROM products WHERE name LIKE ? ORDER BY id DESC`;
+        connection.query(query, [searchQuery], (err, results) => {
             if (err) {
                 console.error('Error executing MySQL query: ' + err.stack);
                 return res.status(500).json({ error: 'Internal server error' });
             }
 
-            const totalProducts = results[0].total;
-            const totalPages = Math.ceil(totalProducts / perPage);
-
+            const products = results;
             const responseData = {
-                currentPage: page,
-                totalPages: totalPages,
+                currentPage: 1,
+                totalPages: 1,
                 products: products
             };
 
             res.json(responseData);
         });
-    });
+    } else {
+        const startIndex = (page - 1) * perPage;
+
+        // Truy vấn MySQL để lấy dữ liệu sản phẩm theo trang và tìm kiếm
+        const query = `SELECT * FROM products WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+        connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const products = results;
+
+            // Truy vấn để đếm tổng số sản phẩm phù hợp với điều kiện tìm kiếm
+            const countQuery = `SELECT COUNT(*) AS total FROM products WHERE name LIKE ?`;
+            connection.query(countQuery, [searchQuery], (err, results) => {
+                if (err) {
+                    console.error('Error executing MySQL query: ' + err.stack);
+                    return res.status(500).json({ error: 'Internal server error' });
+                }
+
+                const totalProducts = results[0].total;
+                const totalPages = Math.ceil(totalProducts / perPage);
+
+                const responseData = {
+                    currentPage: page,
+                    totalPages: totalPages,
+                    products: products
+                };
+
+                res.json(responseData);
+            });
+        });
+    }
 });
+
 
 // Lấy một sản phẩm theo id
 router.get('/:id', authenticateJWT, (req, res) => {
