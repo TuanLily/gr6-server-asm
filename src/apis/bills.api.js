@@ -64,37 +64,62 @@ router.get('/:id', (req, res) => {
 
 // Thêm một bill mới
 router.post('/', (req, res) => {
-    const { product_id, qty, total, customer_name, employee_id, voucher_id } = req.body;
-    
+    const { product_id, qty, customer_name, employee_id, voucher_code } = req.body;
+
     // Kiểm tra xem product_id có được cung cấp không
     if (!product_id) {
         res.status(400).send('Product ID is required');
         return;
     }
 
-    const query = 'INSERT INTO bills (product_id, qty, total, customer_name, employee_id, voucher_id) VALUES (?, ?, ?, ?, ?, ?)';
-    connection.query(query, [product_id, qty, total, customer_name, employee_id, voucher_id], (err, result) => {
+    // Truy vấn để lấy thông tin sản phẩm và voucher
+    const productQuery = 'SELECT price FROM products WHERE id = ?';
+    const voucherQuery = 'SELECT discount_rate FROM vouchers WHERE code = ?';
+
+    connection.query(productQuery, [product_id], (err, productResults) => {
         if (err) {
-            console.error('Error adding bill:', err);
-            res.status(500).send('Error adding bill');
+            console.error('Error fetching product:', err);
+            res.status(500).send('Error fetching product');
             return;
         }
-        res.json([{ message: 'Bill added successfully' }, { id: result.insertId, product_id, qty, total, customer_name, employee_id, voucher_id }]);
+
+        const price = productResults[0].price;
+        const provisionalTotal = price * qty;
+
+        connection.query(voucherQuery, [voucher_code], (err, voucherResults) => {
+            let discountAmount = 0;
+            if (!err && voucherResults.length > 0) {
+                const discountRate = voucherResults[0].discount_rate;
+                discountAmount = provisionalTotal * (discountRate / 100);
+            }
+
+            const total = provisionalTotal - discountAmount;
+
+            const query = 'INSERT INTO bills (product_id, qty, total, customer_name, employee_id, voucher_code) VALUES (?, ?, ?, ?, ?, ?)';
+            connection.query(query, [product_id, qty, total, customer_name, employee_id, voucher_code], (err, result) => {
+                if (err) {
+                    console.error('Error adding bill:', err);
+                    res.status(500).send('Error adding bill');
+                    return;
+                }
+                res.json([{ message: 'Bill added successfully' }, { id: result.insertId, product_id, qty, total, customer_name, employee_id, voucher_code }]);
+            });
+        });
     });
 });
 
 // Cập nhật một bill
 router.put('/:id', (req, res) => {
     const billId = req.params.id;
-    const { product_id, qty, total, customer_name, employee_id, voucher_id } = req.body;
-    const query = 'UPDATE bills SET product_id = ?, qty = ?, total = ?, customer_name = ?, employee_id = ?, voucher_id = ? WHERE id = ?';
-    connection.query(query, [product_id, qty, total, customer_name, employee_id, voucher_id, billId], (err, result) => {
+    const { product_id, qty, total, customer_name, employee_id, voucher_code } = req.body;
+    const query = 'UPDATE bills SET product_id = ?, qty = ?, total = ?, customer_name = ?, employee_id = ?, voucher_code = ? WHERE id = ?';
+    connection.query(query, [product_id, qty, total, customer_name, employee_id, voucher_code, billId], (err, result) => {
         if (err) {
             console.error('Error updating bill:', err);
             res.status(500).send('Error updating bill');
             return;
         }
-        res.json({ message: 'Bill edited successfully', id: billId, product_id, qty, total, customer_name, employee_id, voucher_id });
+        res.json({ message: 'Bill edited successfully', id: billId, product_id, qty, total, customer_name, employee_id, voucher_code });
     });
 });
 

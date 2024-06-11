@@ -2,6 +2,23 @@ const express = require('express');
 const router = express.Router();
 const connection = require("../../index");
 
+
+// Endpoint mới để lấy thông tin voucher dựa trên mã voucher
+router.get('/code', (req, res) => {
+    const voucherCode = req.query.code;
+    const query = 'SELECT * FROM vouchers WHERE voucher_code = ?';
+    connection.query(query, [voucherCode], (err, results) => {
+        if (err) {
+            console.error('Error fetching voucher by code:', err);
+            return res.status(500).send('Error fetching voucher');
+        }
+        if (results.length === 0) {
+            return res.status(404).send('Voucher not found');
+        }
+        res.json(results[0]);
+    });
+});
+
 // Lấy danh sách voucher với tìm kiếm và phân trang
 router.get('/', (req, res) => {
     const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có
