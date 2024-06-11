@@ -1,17 +1,46 @@
 const express = require('express');
 const router = express.Router();
-const connection = require("../../index")
+const connection = require('../../index');
+const authenticateJWT = require('./auth.api');
 
-// Lấy danh sách 
-router.get('/', (req, res) => {
-    const query = 'SELECT * FROM categories';
-    connection.query(query, (err, rows) => {
+// Middleware xác thực
+// Lấy danh sách
+router.get('/', authenticateJWT, (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const perPage = 5;
+    const startIndex = (page - 1) * perPage;
+    const search = req.query.search || '';
+
+    //truy vấn tìm kiếm sản phẩm
+    const searchQuery = `%${search}%`;
+
+    const query = `SELECT * FROM categories WHERE name LIKE ? ORDER BY id DESC LIMIT ?, ?`;
+    connection.query(query, [searchQuery, startIndex, perPage], (err, results) => {
         if (err) {
-            console.error('Error fetching categories:', err);
-            res.status(500).send('Error fetching categories');
-            return;
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json(rows);
+
+        const Categories = results;
+
+        const countQuery = `SELECT COUNT(*) AS total FROM categories WHERE name LIKE ?`;
+        connection.query(countQuery, [searchQuery], (err, results) => {
+            if (err) {
+                console.error('Error executing MySQL query: ' + err.stack);
+                return res.status(500).json({ error: 'Internal server error' });
+            }
+
+            const totalCategories = results[0].total;
+            const totalPages = Math.ceil(totalCategories / perPage);
+
+            const responseData = {
+                currentPage: page,
+                totalPages: totalPages,
+                categories: Categories
+            };
+
+            res.json(responseData);
+        });
     });
 });
 
@@ -26,7 +55,7 @@ router.get('/:id', (req, res) => {
             return;
         }
         if (rows.length === 0) {
-            res.status(404).send('categories not found');
+            res.status(404).send('Category not found');
             return;
         }
         res.json(rows[0]);
@@ -39,26 +68,26 @@ router.post('/', (req, res) => {
     const query = 'INSERT INTO categories (name, status) VALUES (?, ?)';
     connection.query(query, [name, status], (err, result) => {
         if (err) {
-            console.error('Error adding categories:', err);
-            res.status(500).send('Error adding categories');
+            console.error('Error adding category:', err);
+            res.status(500).send('Error adding category');
             return;
         }
-        res.json([{ message: 'categories added successfully', }, { id: result.insertId, name, status }]);
+        res.json([{ message: 'Category added successfully' }, { id: result.insertId, name, status }]);
     });
 });
 
-// Cập nhật 
+// Cập nhật
 router.put('/:id', (req, res) => {
     const categoriesId = req.params.id;
     const { name, status } = req.body;
-    const query = 'UPDATE categories SET name = ?,status = ? WHERE id = ?';
-    connection.query(query, [name, status , categoriesId], (err, result) => {
+    const query = 'UPDATE categories SET name = ?, status = ? WHERE id = ?';
+    connection.query(query, [name, status, categoriesId], (err, result) => {
         if (err) {
-            console.error('Error updating categories:', err);
-            res.status(500).send('Error updating categories');
+            console.error('Error updating category:', err);
+            res.status(500).send('Error updating category');
             return;
         }
-        res.json({ message: 'categories edited successfully', id: categoriesId, name, status });
+        res.json({ message: 'Category edited successfully', id: categoriesId, name, status });
     });
 });
 
@@ -69,8 +98,8 @@ router.patch('/:id', (req, res) => {
     const query = 'UPDATE categories SET ? WHERE id = ?';
     connection.query(query, [updatedFields, categoriesId], (err, result) => {
         if (err) {
-            console.error('Error updating categories:', err);
-            res.status(500).send('Error updating categories');
+            console.error('Error updating category:', err);
+            res.status(500).send('Error updating category');
             return;
         }
         res.json({ id: categoriesId, ...updatedFields });
@@ -78,16 +107,68 @@ router.patch('/:id', (req, res) => {
 });
 
 // Xóa
-router.delete('/:id', (req, res) => {
-    const categoriesId = req.params.id;
-    const query = 'DELETE FROM categories WHERE id = ?';
-    connection.query(query, [categoriesId], (err, result) => {
+router.delete('/:id', authenticateJWT, (req, res) => {
+    const categoryId = req.params.id;
+
+    // Kiểm tra xem có sản phẩm nào trong danh mục này không
+    const checkProductsQuery = 'SELECT COUNT(*) AS productCount FROM products WHERE category_id = ?';
+
+    connection.query(checkProductsQuery, [categoryId], (err, results) => {
         if (err) {
-            console.error('Error deleting categories:', err);
-            res.status(500).send('Error deleting categories');
-            return;
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
         }
-        res.json({ id: categoriesId, message: 'categories deleted successfully' });
+
+        const productCount = results[0].productCount;
+
+        if (productCount > 0) {
+            // Lấy tên danh mục cần xóa
+            const getCategoryNameQuery = 'SELECT name FROM categories WHERE id = ?';
+            connection.query(getCategoryNameQuery, [categoryId], (err, results) => {
+                if (err) {
+                    console.error('Error executing MySQL query: ' + err.stack);
+                    return res.status(500).json({ error: 'Internal server error' });
+                }
+
+                if (results.length === 0) {
+                    return res.status(404).json({ error: 'Category not found' });
+                }
+
+                const categoryName = results[0].name;
+
+                // Cập nhật các sản phẩm thuộc danh mục này thành danh mục có tên khác
+                const updateProductsQuery = `UPDATE products SET category_id = (SELECT id FROM categories WHERE name = 'Chưa Phân Loại') WHERE category_id = ?`;
+
+                connection.query(updateProductsQuery, [categoryId], (err) => {
+                    if (err) {
+                        console.error('Error executing MySQL query: ' + err.stack);
+                        return res.status(500).json({ error: 'Internal server error' });
+                    }
+
+                    // Xóa danh mục sau khi cập nhật sản phẩm
+                    const deleteCategoryQuery = 'DELETE FROM categories WHERE id = ?';
+                    connection.query(deleteCategoryQuery, [categoryId], (err) => {
+                        if (err) {
+                            console.error('Error executing MySQL query: ' + err.stack);
+                            return res.status(500).json({ error: 'Internal server error' });
+                        }
+
+                        res.status(200).json({ message: 'Category deleted successfully' });
+                    });
+                });
+            });
+        } else {
+            // Xóa danh mục nếu không có sản phẩm nào
+            const deleteCategoryQuery = 'DELETE FROM categories WHERE id = ?';
+            connection.query(deleteCategoryQuery, [categoryId], (err) => {
+                if (err) {
+                    console.error('Error executing MySQL query: ' + err.stack);
+                    return res.status(500).json({ error: 'Internal server error' });
+                }
+
+                res.status(200).json({ message: 'Category deleted successfully' });
+            });
+        }
     });
 });
 
