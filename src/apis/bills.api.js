@@ -65,48 +65,64 @@ router.get('/:id', (req, res) => {
 // Thêm một bill mới
 router.post('/', (req, res) => {
     const { product_id, qty, customer_name, employee_id, voucher_code } = req.body;
-
+  
     // Kiểm tra xem product_id có được cung cấp không
     if (!product_id) {
-        res.status(400).send('Product ID is required');
-        return;
+      return res.status(400).send('Product ID is required');
     }
-
-    // Truy vấn để lấy thông tin sản phẩm và voucher
-    const productQuery = 'SELECT price FROM products WHERE id = ?';
-    const voucherQuery = 'SELECT discount_rate FROM vouchers WHERE code = ?';
-
+  
+    // Truy vấn để lấy giá sản phẩm
+    const productQuery = 'SELECT sale_price FROM products WHERE id = ?';
     connection.query(productQuery, [product_id], (err, productResults) => {
+      if (err) {
+        console.error('Lỗi khi truy vấn sản phẩm:', err);
+        return res.status(500).send('Lỗi khi truy vấn sản phẩm');
+      }
+  
+      // Tính tổng tạm tính
+      const sale_price = productResults[0].sale_price;
+      const provisionalTotal = sale_price * qty;
+  
+      // Truy vấn để lấy tỷ lệ giảm giá từ voucher
+      const voucherQuery = 'SELECT discount_rate FROM vouchers WHERE voucher_code = ?';
+      connection.query(voucherQuery, [voucher_code], (err, voucherResults) => {
         if (err) {
-            console.error('Error fetching product:', err);
-            res.status(500).send('Error fetching product');
-            return;
+          console.error('Lỗi khi truy vấn voucher:', err);
+          return res.status(500).send('Lỗi khi truy vấn voucher');
         }
-
-        const price = productResults[0].price;
-        const provisionalTotal = price * qty;
-
-        connection.query(voucherQuery, [voucher_code], (err, voucherResults) => {
-            let discountAmount = 0;
-            if (!err && voucherResults.length > 0) {
-                const discountRate = voucherResults[0].discount_rate;
-                discountAmount = provisionalTotal * (discountRate / 100);
-            }
-
-            const total = provisionalTotal - discountAmount;
-
-            const query = 'INSERT INTO bills (product_id, qty, total, customer_name, employee_id, voucher_code) VALUES (?, ?, ?, ?, ?, ?)';
-            connection.query(query, [product_id, qty, total, customer_name, employee_id, voucher_code], (err, result) => {
-                if (err) {
-                    console.error('Error adding bill:', err);
-                    res.status(500).send('Error adding bill');
-                    return;
-                }
-                res.json([{ message: 'Bill added successfully' }, { id: result.insertId, product_id, qty, total, customer_name, employee_id, voucher_code }]);
-            });
+  
+        let discountAmount = 0;
+        if (voucherResults.length > 0) {
+          const discountRate = voucherResults[0].discount_rate;
+          discountAmount = provisionalTotal * (discountRate / 100);
+        }
+  
+        // Tính tổng cuối cùng
+        const total = provisionalTotal - discountAmount;
+  
+        // Thêm hóa đơn vào cơ sở dữ liệu
+        const insertQuery = 'INSERT INTO bills (product_id, qty, total, customer_name, employee_id, voucher_code) VALUES (?, ?, ?, ?, ?, ?)';
+        connection.query(insertQuery, [product_id, qty, total, customer_name, employee_id, voucher_code], (err, result) => {
+          if (err) {
+            console.error('Lỗi khi thêm hóa đơn:', err);
+            return res.status(500).send('Lỗi khi thêm hóa đơn');
+          }
+  
+          // Phản hồi với thông báo thành công và dữ liệu hóa đơn đã thêm
+          res.json({
+            message: 'Thêm hóa đơn thành công',
+            id: result.insertId,
+            product_id,
+            qty,
+            total,
+            customer_name,
+            employee_id,
+            voucher_code
+          });
         });
+      });
     });
-});
+  });
 
 // Cập nhật một bill
 router.put('/:id', (req, res) => {
