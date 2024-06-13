@@ -143,7 +143,7 @@ router.patch('/:id', authenticateJWT, (req, res) => {
 // Xóa một nhân viên
 router.delete('/:id', authenticateJWT, (req, res) => {
     const employeeId = req.params.id;
-    const query = 'DELETE FROM employees WHERE id = ?';
+    const query = 'UPDATE employees SET status = 0 WHERE id = ?';
     connection.query(query, [employeeId], (err, result) => {
         if (err) {
             console.error('Error deleting Employees:', err);
