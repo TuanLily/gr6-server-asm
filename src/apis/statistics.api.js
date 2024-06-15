@@ -86,5 +86,27 @@ router.get('/count-products', (req, res) => {
     });
 });
 
+router.get('/count-cate-product', (req, res) => {
+    const query = `
+        SELECT c.id, c.name, COUNT(p.id) AS product_count 
+        FROM Products p 
+        JOIN Categories c 
+        ON p.category_id = c.id 
+        GROUP BY c.id, c.name;
+    `;
+
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+
+        res.json({
+            message: "Success",
+            data: results
+        });
+    });
+});
+
 
 module.exports = router;
