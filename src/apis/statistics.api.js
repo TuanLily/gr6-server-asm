@@ -23,4 +23,22 @@ router.get('/product-prices', (req, res) => {
     });
 });
 
+router.get('/count-products', (req, res) => {
+    const query = `
+        SELECT COUNT(*) as count FROM products
+    `;
+
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+
+        const { count } = results[0];
+
+        res.json({ message: "Success", count: count });
+    });
+});
+
+
 module.exports = router;
