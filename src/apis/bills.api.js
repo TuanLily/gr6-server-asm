@@ -101,7 +101,7 @@ router.post('/', (req, res) => {
         const total = provisionalTotal - discountAmount;
   
         // Thêm hóa đơn vào cơ sở dữ liệu
-        const insertQuery = 'INSERT INTO bills (product_id, qty, total, customer_name, employee_id, voucher_code) VALUES (?, ?, ?, ?, ?, ?)';
+        const insertQuery = 'INSERT INTO bills (product_id, qty, total, customer_name, employee_id, voucher_code, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())';
         connection.query(insertQuery, [product_id, qty, total, customer_name, employee_id, voucher_code], (err, result) => {
           if (err) {
             console.error('Lỗi khi thêm hóa đơn:', err);
