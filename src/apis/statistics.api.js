@@ -100,13 +100,25 @@ router.get('/count-cate-product', (req, res) => {
             console.error('Error executing MySQL query: ' + err.stack);
             return res.status(500).json({ error: 'Internal server error' });
         }
+        const {count} = results[0];
 
-        res.json({
-            message: "Success",
-            data: results
-        });
-    });
-});
+        res.json({message:"Success", count: count})
+    })
+})
+
+router.get('/count-customers', (req, res) => {
+    const query = `SELECT COUNT(*) as count FROM customers `;
+
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+        const {count} = results[0];
+
+        res.json({message:"Success", count: count})
+    })
+})
 
 
 module.exports = router;
