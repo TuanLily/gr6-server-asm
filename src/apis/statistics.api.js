@@ -119,5 +119,29 @@ router.get('/count-employees', (req, res) => {
     })
 })
 
+router.get("/total-revenues", (req, res) => {
+    const query = `
+        SELECT
+            DATE_FORMAT(created_at, '%Y-%m') AS month,
+            SUM(total) AS total
+        FROM bills
+        GROUP BY month
+        ORDER BY month
+    `;
+
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error("Error executing MySQL query: " + err.stack);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+
+        const monthlyRevenues = results.map(row => ({
+            month: row.month,
+            total: row.total
+        }));
+
+        res.json({ message: "Success", monthlyRevenues });
+    });
+});
 
 module.exports = router;
