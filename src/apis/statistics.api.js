@@ -3,7 +3,7 @@ const router = express.Router();
 const connection = require("../../index");
 
 router.get("/product-prices", (req, res) => {
-  const query = `
+    const query = `
         SELECT
             MAX(price) AS maxPrice,
             MIN(price) AS minPrice,
@@ -11,25 +11,25 @@ router.get("/product-prices", (req, res) => {
         FROM products
     `;
 
-  connection.query(query, (err, results) => {
-    if (err) {
-      console.error("Error executing MySQL query: " + err.stack);
-      return res.status(500).json({ error: "Internal server error" });
-    }
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error("Error executing MySQL query: " + err.stack);
+            return res.status(500).json({ error: "Internal server error" });
+        }
 
-    const { minPrice, maxPrice, avgPrice } = results[0];
+        const { minPrice, maxPrice, avgPrice } = results[0];
 
-    res.json({
-      message: "Success",
-      minPrice: minPrice,
-      maxPrice: maxPrice,
-      avgPrice,
+        res.json({
+            message: "Success",
+            minPrice: minPrice,
+            maxPrice: maxPrice,
+            avgPrice,
+        });
     });
-  });
 });
 
 router.get("/bill-status", (req, res) => {
-  const query = `
+    const query = `
         SELECT
             status,
             COUNT(*) AS count
@@ -37,36 +37,19 @@ router.get("/bill-status", (req, res) => {
         GROUP BY status
     `;
 
-  connection.query(query, (err, results) => {
-    if (err) {
-      console.error("Error executing MySQL query: " + err.stack);
-      return res.status(500).json({ error: "Internal server error" });
-    }
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error("Error executing MySQL query: " + err.stack);
+            return res.status(500).json({ error: "Internal server error" });
+        }
 
-    const statusCounts = results.reduce((acc, row) => {
-      acc[row.status] = row.count;
-      return acc;
-    }, {});
+        const statusCounts = results.reduce((acc, row) => {
+            acc[row.status] = row.count;
+            return acc;
+        }, {});
 
-    res.json({ message: "Success", statusCounts });
-  });
-});
-
-router.get("/count-products", (req, res) => {
-  const query = `
-      SELECT COUNT(*) as count FROM products
-  `;
-
-  connection.query(query, (err, results) => {
-    if (err) {
-      console.error("Error executing MySQL query: " + err.stack);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-
-    const { count } = results[0];
-
-    res.json({ message: "Success", count: count });
-  });
+        res.json({ message: "Success", statusCounts });
+    });
 });
 
 router.get('/count-products', (req, res) => {
@@ -100,14 +83,30 @@ router.get('/count-cate-product', (req, res) => {
             console.error('Error executing MySQL query: ' + err.stack);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        const {count} = results[0];
 
-        res.json({message:"Success", count: count})
-    })
-})
+        res.json({
+            message: "Success",
+            data: results
+        });
+    });
+});
 
 router.get('/count-customers', (req, res) => {
     const query = `SELECT COUNT(*) as count FROM customers `;
+
+    connection.query(query, (err, results) => {
+        if (err) {
+            console.error('Error executing MySQL query: ' + err.stack);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+        const { count } = results[0];
+
+        res.json({ message: "Success", count: count })
+    })
+});
+
+router.get('/count-employees', (req, res) => {
+    const query = `SELECT COUNT(*) as count FROM employees WHERE status = 1`;
 
     connection.query(query, (err, results) => {
         if (err) {
