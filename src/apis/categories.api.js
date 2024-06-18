@@ -3,7 +3,6 @@ const router = express.Router();
 const connection = require('../../index');
 const authenticateJWT = require('./auth.api');
 
-// Middleware xác thực
 // Lấy danh sách
 router.get('/', authenticateJWT, (req, res) => {
     const page = parseInt(req.query.page); // Lấy tham số 'page'

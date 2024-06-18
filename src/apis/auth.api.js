@@ -11,31 +11,6 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 
 // Endpoint để lấy thông tin tài khoản qua email
-// router.post('/login', (req, res) => {
-//     const { email, password } = req.body;
-//     const query = 'SELECT * FROM Employees WHERE email = ?';
-
-//     connection.query(query, [email], (err, rows) => {
-//         if (err) {
-//             console.error('Error fetching user:', err);
-//             res.status(500).send('Error fetching user');
-//             return;
-//         }
-//         if (rows.length === 0) {
-//             res.status(404).send('Invalid email or password');
-//             return;
-//         }
-
-//         const user = rows[0];
-//         if (user.password !== password) {
-//             res.status(401).send('Invalid email or password');
-//             return;
-//         }
-
-//         res.json({ name: user.name, token: 'fake-jwt-token' }); // Thay thế bằng token thực tế
-//     });
-// }); //! Chức năng login bằng mật khẩu bình thường
-
 router.post('/login', (req, res) => {
     const { email, password, rememberMe } = req.body;
     const query = 'SELECT * FROM Employees WHERE email = ?';
@@ -107,14 +82,6 @@ const authenticateJWT = (req, res, next) => {
 };
 
 module.exports = authenticateJWT;
-
-
-
-
-// // Một route được bảo vệ bằng JWT
-// router.get('/protected', authenticateJWT, (req, res) => {
-//     res.json({ message: `Hello ${req.user.name}, this is a protected route!` });
-// });
 
 // Endpoint để làm mới token
 router.post('/refresh-token', (req, res) => {

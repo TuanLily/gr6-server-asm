@@ -3,17 +3,6 @@ const router = express.Router();
 const connection = require("../../index");
 
 // Lấy danh sách đánh giá
-// router.get('/', (req, res) => {
-//     const query = 'SELECT * FROM feedback';
-//     connection.query(query, (err, rows) => {
-//         if (err) {
-//             console.error('Error fetching feedback:', err);
-//             res.status(500).send('Error fetching feedback');
-//             return;
-//         }
-//         res.json(rows);
-//     });
-// });
 
 router.get('/', (req, res) => {
     const page = parseInt(req.query.page) || 1; // Lấy tham số 'page', mặc định là 1 nếu không có

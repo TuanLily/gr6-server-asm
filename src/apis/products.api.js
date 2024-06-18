@@ -3,9 +3,6 @@ const router = express.Router();
 const connection = require("../../index")
 const authenticateJWT = require('./auth.api');
 
-// Áp dụng middleware authenticateJWT cho tất cả các route trong file này
-// router.use(authenticateJWT);
-
 
 
 router.get('/', authenticateJWT, (req, res) => {
