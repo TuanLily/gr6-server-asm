@@ -93,30 +93,46 @@ router.post("/", (req, res) => {
     return;
   }
 
-  const query =
-    "INSERT INTO vouchers (voucher_code, discount_rate, valid_from, valid_to, description) VALUES (?, ?, ?, ?, ?)";
-  connection.query(
-    query,
-    [voucher_code, discount_rate, valid_from, valid_to, description],
-    (err, result) => {
-      if (err) {
-        console.error("Error adding voucher:", err);
-        res.status(500).send("Error adding voucher");
-        return;
-      }
-      res.json([
-        { message: "Voucher added successfully" },
-        {
-          id: result.insertId,
-          voucher_code,
-          discount_rate,
-          valid_from,
-          valid_to,
-          description,
-        },
-      ]);
+  // Kiểm tra xem mã voucher đã tồn tại chưa
+  const checkDuplicateQuery =
+    "SELECT COUNT(*) AS count FROM vouchers WHERE voucher_code = ?";
+  connection.query(checkDuplicateQuery, [voucher_code], (err, results) => {
+    if (err) {
+      console.error("Error checking duplicate voucher code:", err);
+      res.status(500).send("Error checking duplicate voucher code");
+      return;
     }
-  );
+    if (results[0].count > 0) {
+      res.status(409).send("Voucher code already exists");
+      return;
+    }
+
+    // Thêm voucher mới
+    const query =
+      "INSERT INTO vouchers (voucher_code, discount_rate, valid_from, valid_to, description) VALUES (?, ?, ?, ?, ?)";
+    connection.query(
+      query,
+      [voucher_code, discount_rate, valid_from, valid_to, description],
+      (err, result) => {
+        if (err) {
+          console.error("Error adding voucher:", err);
+          res.status(500).send("Error adding voucher");
+          return;
+        }
+        res.json([
+          { message: "Voucher added successfully" },
+          {
+            id: result.insertId,
+            voucher_code,
+            discount_rate,
+            valid_from,
+            valid_to,
+            description,
+          },
+        ]);
+      }
+    );
+  });
 });
 
 // Cập nhật một voucher
@@ -124,26 +140,54 @@ router.put("/:id", (req, res) => {
   const voucherId = req.params.id;
   const { voucher_code, discount_rate, valid_from, valid_to, description } =
     req.body;
-  const query =
-    "UPDATE vouchers SET voucher_code = ?, discount_rate = ?, valid_from = ?, valid_to = ?, description = ? WHERE id = ?";
+
+  // Kiểm tra xem mã voucher đã tồn tại chưa
+  const checkDuplicateQuery =
+    "SELECT COUNT(*) AS count FROM vouchers WHERE voucher_code = ? AND id != ?";
   connection.query(
-    query,
-    [voucher_code, discount_rate, valid_from, valid_to, description, voucherId],
-    (err, result) => {
+    checkDuplicateQuery,
+    [voucher_code, voucherId],
+    (err, results) => {
       if (err) {
-        console.error("Error updating voucher:", err);
-        res.status(500).send("Error updating voucher");
+        console.error("Error checking duplicate voucher code:", err);
+        res.status(500).send("Error checking duplicate voucher code");
         return;
       }
-      res.json({
-        message: "Voucher edited successfully",
-        id: voucherId,
-        voucher_code,
-        discount_rate,
-        valid_from,
-        valid_to,
-        description,
-      });
+      if (results[0].count > 0) {
+        res.status(409).send("Voucher code already exists");
+        return;
+      }
+
+      // Cập nhật voucher
+      const query =
+        "UPDATE vouchers SET voucher_code = ?, discount_rate = ?, valid_from = ?, valid_to = ?, description = ? WHERE id = ?";
+      connection.query(
+        query,
+        [
+          voucher_code,
+          discount_rate,
+          valid_from,
+          valid_to,
+          description,
+          voucherId,
+        ],
+        (err, result) => {
+          if (err) {
+            console.error("Error updating voucher:", err);
+            res.status(500).send("Error updating voucher");
+            return;
+          }
+          res.json({
+            message: "Voucher edited successfully",
+            id: voucherId,
+            voucher_code,
+            discount_rate,
+            valid_from,
+            valid_to,
+            description,
+          });
+        }
+      );
     }
   );
 });
@@ -152,15 +196,49 @@ router.put("/:id", (req, res) => {
 router.patch("/:id", (req, res) => {
   const voucherId = req.params.id;
   const updatedFields = req.body;
-  const query = "UPDATE vouchers SET ? WHERE id = ?";
-  connection.query(query, [updatedFields, voucherId], (err, result) => {
-    if (err) {
-      console.error("Error updating voucher:", err);
-      res.status(500).send("Error updating voucher");
-      return;
-    }
-    res.json({ id: voucherId, ...updatedFields });
-  });
+
+  // Kiểm tra xem mã voucher đã tồn tại chưa nếu voucher_code được cập nhật
+  if (updatedFields.voucher_code) {
+    const checkDuplicateQuery =
+      "SELECT COUNT(*) AS count FROM vouchers WHERE voucher_code = ? AND id != ?";
+    connection.query(
+      checkDuplicateQuery,
+      [updatedFields.voucher_code, voucherId],
+      (err, results) => {
+        if (err) {
+          console.error("Error checking duplicate voucher code:", err);
+          res.status(500).send("Error checking duplicate voucher code");
+          return;
+        }
+        if (results[0].count > 0) {
+          res.status(409).send("Voucher code already exists");
+          return;
+        }
+
+        // Cập nhật voucher
+        const query = "UPDATE vouchers SET ? WHERE id = ?";
+        connection.query(query, [updatedFields, voucherId], (err, result) => {
+          if (err) {
+            console.error("Error updating voucher:", err);
+            res.status(500).send("Error updating voucher");
+            return;
+          }
+          res.json({ id: voucherId, ...updatedFields });
+        });
+      }
+    );
+  } else {
+    // Cập nhật voucher
+    const query = "UPDATE vouchers SET ? WHERE id = ?";
+    connection.query(query, [updatedFields, voucherId], (err, result) => {
+      if (err) {
+        console.error("Error updating voucher:", err);
+        res.status(500).send("Error updating voucher");
+        return;
+      }
+      res.json({ id: voucherId, ...updatedFields });
+    });
+  }
 });
 
 // Xóa một voucher
@@ -174,6 +252,19 @@ router.delete("/:id", (req, res) => {
       return;
     }
     res.json({ id: voucherId, message: "Voucher deleted successfully" });
+  });
+});
+
+router.get("/check-duplicate/:voucher_code", (req, res) => {
+  const voucherCode = req.params.voucher_code;
+  const query = "SELECT COUNT(*) AS count FROM vouchers WHERE voucher_code = ?";
+  connection.query(query, [voucherCode], (err, results) => {
+    if (err) {
+      console.error("Error checking duplicate voucher code:", err);
+      return res.status(500).send("Error checking duplicate voucher code");
+    }
+    const count = results[0].count;
+    res.json({ exists: count > 0 });
   });
 });
 
