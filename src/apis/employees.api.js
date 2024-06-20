@@ -113,16 +113,45 @@ router.post('/', authenticateJWT, (req, res) => {
 // Cập nhật một nhân viên
 router.put('/:id', authenticateJWT, (req, res) => {
     const employeeId = req.params.id;
-    const {name, username, phone, email, address, password, salary} = req.body;
-    const query = 'UPDATE employees SET name = ?, username=?, phone = ?, email = ?, address = ?, password =?, salary = ? WHERE id = ?';
-    connection.query(query, [name, username, phone, email, address, password, salary, employeeId], (err, result) => {
-        if (err) {
-            console.error('Error updating Employees:', err);
-            res.status(500).send('Error updating Employees');
-            return;
-        }
-        res.json({ message: 'Employees edited successfully', id: employeeId, name, username, phone, email, address, password, salary });
-    });
+    const { name, username, phone, email, address, password, salary } = req.body;
+
+    const updateEmployee = (hashedPassword) => {
+        const query = 'UPDATE employees SET name = ?, username = ?, phone = ?, email = ?, address = ?, password = ?, salary = ? WHERE id = ?';
+        connection.query(query, [name, username, phone, email, address, hashedPassword, salary, employeeId], (err, result) => {
+            if (err) {
+                console.error('Lỗi khi cập nhật nhân viên:', err);
+                res.status(500).send('Lỗi khi cập nhật nhân viên');
+                return;
+            }
+            res.json({ message: 'Cập nhật nhân viên thành công', id: employeeId, name, username, phone, email, address, password, salary });
+        });
+    };
+
+    if (password) {
+        bcrypt.hash(password, saltRounds, (err, hashedPassword) => {
+            if (err) {
+                console.error('Lỗi khi mã hóa mật khẩu:', err);
+                res.status(500).send('Lỗi khi mã hóa mật khẩu');
+                return;
+            }
+            updateEmployee(hashedPassword);
+        });
+    } else {
+        // Nếu không có mật khẩu được cung cấp, lấy mật khẩu hiện tại từ cơ sở dữ liệu
+        const query = 'SELECT password FROM employees WHERE id = ?';
+        connection.query(query, [employeeId], (err, results) => {
+            if (err) {
+                console.error('Lỗi khi lấy mật khẩu hiện tại:', err);
+                res.status(500).send('Lỗi khi lấy mật khẩu hiện tại');
+                return;
+            }
+            if (results.length > 0) {
+                updateEmployee(results[0].password);
+            } else {
+                res.status(404).send('Không tìm thấy nhân viên');
+            }
+        });
+    }
 });
 
 // Cập nhật một phần thông tin của nhân viên
